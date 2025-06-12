@@ -48,6 +48,7 @@
 #include "AP_Baro_ExternalAHRS.h"
 #include "AP_Baro_ICP101XX.h"
 #include "AP_Baro_ICP201XX.h"
+#include "AP_Baro_VA500P.h"
 
 #include <AP_Airspeed/AP_Airspeed.h>
 #include <AP_AHRS/AP_AHRS.h>
@@ -55,6 +56,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Vehicle/AP_Vehicle.h>
+#include <AP_SerialManager/AP_SerialManager.h>
 
 #define INTERNAL_TEMPERATURE_CLAMP 35.0f
 
@@ -177,7 +179,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @Param: _PROBE_EXT
     // @DisplayName: External barometers to probe
     // @Description: This sets which types of external i2c barometer to look for. It is a bitmask of barometer types. The I2C buses to probe is based on BARO_EXT_BUS. If BARO_EXT_BUS is -1 then it will probe all external buses, otherwise it will probe just the bus number given in BARO_EXT_BUS.
-    // @Bitmask: 0:BMP085,1:BMP280,2:MS5611,3:MS5607,4:MS5637,5:FBM320,6:DPS280,7:LPS25H,8:Keller,9:MS5837,10:BMP388,11:SPL06,12:MSP
+    // @Bitmask: 0:BMP085,1:BMP280,2:MS5611,3:MS5607,4:MS5637,5:FBM320,6:DPS280,7:LPS25H,8:Keller,9:MS5837,10:BMP388,11:SPL06,12:MSP,13:VA500P
     // @User: Advanced
     AP_GROUPINFO("_PROBE_EXT", 14, AP_Baro, _baro_probe_ext, HAL_BARO_PROBE_EXT_DEFAULT),
 #endif
@@ -755,6 +757,10 @@ void AP_Baro::init(void)
         ADD_BACKEND(AP_Baro_KellerLD::probe(*this,
                                           std::move(GET_I2C_DEVICE(_ext_bus, HAL_BARO_KELLERLD_I2C_ADDR))));
 #endif
+#if AP_BARO_MS56XX_ENABLED
+        ADD_BACKEND(AP_Baro_MS56XX::probe(*this,
+                                          std::move(GET_I2C_DEVICE(_ext_bus, HAL_BARO_MS5611_I2C_ADDR))));
+#endif
 #else
 #if AP_BARO_MS56XX_ENABLED
         ADD_BACKEND(AP_Baro_MS56XX::probe(*this,
@@ -775,6 +781,15 @@ void AP_Baro::init(void)
     for (uint8_t i=0; i<8; i++) {
         if (msp_instance_mask & (1U<<i)) {
             ADD_BACKEND(new AP_Baro_MSP(*this, i));
+        }
+    }
+#endif
+
+#if AP_BARO_VA500P_ENABLED
+    {
+        auto dev = AP_SerialManager::get_singleton()->find_serial(AP_SerialManager::SerialProtocol_Baro, 4);
+        if (dev) {
+            ADD_BACKEND(AP_Baro_VA500P::probe(*this, dev));
         }
     }
 #endif
